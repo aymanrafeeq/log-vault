@@ -43,3 +43,27 @@ func TestParseLogEntry(t *testing.T) {
 		t.Errorf("Expected 'Connection established to replica' but got %s\n", entry.Msg)
 	}
 }
+
+// func TestParseLogFiles(t *testing.T) {
+// 	entries, err := ParseLogFiles()
+// 	if err != nil {
+// 		t.Fatalf("Expected no error, got:%v", err)
+// 	}
+// 	if len(entries) == 0 {
+// 		t.Fatalf("Expected some log entries, but got 0")
+// 	}
+// }
+
+func TestParseLogFiles(t *testing.T) {
+	entries, err := ParseLogFiles()
+
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+
+	if len(entries) == 0 {
+		t.Errorf("Expected some log entries, got 0")
+	} else {
+		t.Logf("Parsed %d entries successfully", len(entries))
+	}
+}
