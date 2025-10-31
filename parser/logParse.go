@@ -43,7 +43,9 @@ func ParseLogEntry(line string) (*model.LogEntry, error) {
 func ParseLogFiles() ([]model.LogEntry, error) {
 	var allEntries []model.LogEntry
 
-	files, err := os.ReadDir("./logs")
+	folderPath := "/home/ayman/log-vault/logs"
+
+	files, err := os.ReadDir(folderPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read directory : %v", err)
 	}
@@ -52,7 +54,7 @@ func ParseLogFiles() ([]model.LogEntry, error) {
 			continue
 		}
 
-		path := filepath.Join("./logs/", file.Name())
+		path := filepath.Join(folderPath, file.Name())
 		f, err := os.Open(path)
 		if err != nil {
 			fmt.Printf("Skipping file %s due to error: %v\n", path, err)

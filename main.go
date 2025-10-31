@@ -2,8 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
-	"logGen/parser"
+	"logGen/segment"
 )
 
 func main() {
@@ -15,9 +14,20 @@ func main() {
 	// }
 	// fmt.Printf("struct: %#v", entry)
 
-	entries, err := parser.ParseLogFiles()
-	if err != nil {
-		slog.Error("Error here", "error", err)
-	}
-	fmt.Println(entries)
+	// 	entries, err := parser.ParseLogFiles()
+	// 	if err != nil {
+	// 		slog.Error("Error here", "error", err)
+	// 	}
+	// 	fmt.Println(entrpies)
+	segments, _ := segment.ParseLogSegments("/home/ayman/log-vault/logs")
+
+	fmt.Printf("filename: %#v \n", segments)
+	// fmt.Println("filename: %#v \n", segments[1].FileName)
+	// for _, segment := range segments {
+	// 	fmt.Printf("File Name : %s\n", segment.FileName)
+	// 	fmt.Printf("Start Time : %v\n", segment.StartTime)
+	// 	fmt.Printf("End Time : %v\n\n\n\n", segment.EndTime)
+	// 	// fmt.Printf("LogEntries : %v", segment.LogEntries)
+	// }
+
 }
