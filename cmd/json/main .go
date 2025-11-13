@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"logGen/segment"
+	"logGen/pkg/segment"
 	"os"
 )
 

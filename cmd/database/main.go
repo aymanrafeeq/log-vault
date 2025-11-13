@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log/slog"
 	"logGen/model"
-	"logGen/segment"
+	"logGen/pkg/segment"
 	"os"
 
 	"github.com/jackc/pgx/v5"

@@ -2,7 +2,7 @@ package filter
 
 import (
 	"logGen/model"
-	"logGen/segment"
+	"logGen/pkg/segment"
 	"os"
 	"path/filepath"
 	"strings"

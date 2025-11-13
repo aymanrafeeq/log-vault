@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"logGen/model"
-	"logGen/parser"
+	"logGen/pkg/parser"
 	"os"
 	"path/filepath"
 	"time"
