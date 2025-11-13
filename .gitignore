@@ -2,3 +2,4 @@ log_generator
 logs
 logGen
 coverage.out
+logs.json
