@@ -55,7 +55,7 @@ func TestParseLogEntry(t *testing.T) {
 // }
 
 func TestParseLogFiles(t *testing.T) {
-	entries, err := ParseLogFiles()
+	entries, err := ParseLogFiles("/home/ayman/log-vault/logs")
 
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)

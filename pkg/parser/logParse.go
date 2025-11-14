@@ -40,10 +40,10 @@ func ParseLogEntry(line string) (*model.LogEntry, error) {
 	return &entry, nil
 }
 
-func ParseLogFiles() ([]model.LogEntry, error) {
+func ParseLogFiles(folderPath string) ([]model.LogEntry, error) {
 	var allEntries []model.LogEntry
 
-	folderPath := "/home/ayman/log-vault/logs"
+	// folderPath := "/home/ayman/log-vault/logs"
 
 	files, err := os.ReadDir(folderPath)
 	if err != nil {
