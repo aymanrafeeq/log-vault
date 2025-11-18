@@ -1,12 +1,12 @@
 package models
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"logGen/model"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -22,49 +22,44 @@ type queryComponent struct {
 }
 
 type LogLevel struct {
-	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"uniqueIndex;size:100;not null"`
+	Id    uint   `gorm:"primaryKey"`
+	Level string `gorm:"unique;not null"`
 }
 
 type LogComponent struct {
-	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"uniqueIndex;size:200;not null"`
+	Id        uint   `gorm:"primaryKey"`
+	Component string `gorm:"unique;not null"`
 }
 
 type LogHost struct {
-	ID   uint   `gorm:"primaryKey"`
-	Name string `gorm:"uniqueIndex;size:200;not null"`
+	Id   uint   `gorm:"primaryKey"`
+	Host string `gorm:"unique;not null"`
 }
 
-// Main entry
 type Entry struct {
 	gorm.Model
-	TimeStamp time.Time
-	// keep string columns for backward-compat/query compatibility
-	Level     string
-	Component string
-	Host      string
-	RequestId string
-	Message   string
+	TimeStamp   time.Time `gorm:"column:timestamp"`
+	LevelId     uint
+	ComponentId uint
+	HostId      uint
+	RequestId   string
+	Message     string
 
-	// foreign keys to normalized tables (nullable, cascade on update, set null on delete)
-	LogLevelID     *uint         `gorm:"index"`
-	LogLevel       *LogLevel     `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:LogLevelID"`
-	LogComponentID *uint         `gorm:"index"`
-	LogComponent   *LogComponent `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:LogComponentID"`
-	LogHostID      *uint         `gorm:"index"`
-	LogHost        *LogHost      `gorm:"constraint:OnUpdate:CASCADE,OnDelete:SET NULL;foreignKey:LogHostID"`
+	Level     LogLevel     `gorm:"foreignKey:LevelId"`
+	Component LogComponent `gorm:"foreignKey:ComponentId"`
+	Host      LogHost      `gorm:"foreignKey:HostId"`
 }
 
-func (l Entry) String() string {
-	if l.TimeStamp.IsZero() {
+func (e Entry) String() string {
+	if e.TimeStamp.IsZero() {
 		return "Empty"
 	} else {
-		return fmt.Sprintf("%s | %s | %s | %s | %s | %s", l.TimeStamp, l.Level, l.Component, l.Host, l.RequestId, l.Message)
+		return fmt.Sprintf("%s | %s | %s | %s | %s | %s", e.TimeStamp, e.Level.Level, e.Component.Component, e.Host.Host, e.RequestId, e.Message)
 
 	}
 }
 
+// connecting database
 func CreateDB(dbUrl string) (*gorm.DB, error) {
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -83,119 +78,139 @@ func CreateDB(dbUrl string) (*gorm.DB, error) {
 	return db, nil
 }
 
+// table creation
 func InitDb(db *gorm.DB) error {
-	// Migrate lookup tables first, then Entry
-	if err := db.AutoMigrate(&LogLevel{}, &LogComponent{}, &LogHost{}, &Entry{}); err != nil {
-		return err
+	db.AutoMigrate(&LogLevel{}, &LogComponent{}, &LogHost{}, &Entry{})
+	for _, l := range []LogLevel{
+		{Level: "INFO"},
+		{Level: "WARN"},
+		{Level: "ERROR"},
+		{Level: "DEBUG"},
+	} {
+		db.FirstOrCreate(&l, l)
+	}
+
+	for _, c := range []LogComponent{
+		{Component: "api-server"},
+		{Component: "database"},
+		{Component: "cache"},
+		{Component: "worker"},
+		{Component: "auth"},
+	} {
+		db.FirstOrCreate(&c, c)
+	}
+
+	for _, h := range []LogHost{
+		{Host: "web01"},
+		{Host: "web02"},
+		{Host: "cache01"},
+		{Host: "worker01"},
+		{Host: "db01"},
+	} {
+		db.FirstOrCreate(&h, h)
 	}
 	return nil
 }
 
-// helper: find or create LogLevel by name
-func findOrCreateLogLevel(ctx context.Context, db *gorm.DB, name string) (*LogLevel, error) {
-	if strings.TrimSpace(name) == "" {
-		return nil, nil
-	}
-	var lvl LogLevel
-	tx := db.WithContext(ctx).Where(LogLevel{Name: name}).FirstOrCreate(&lvl)
-	if tx.Error != nil {
-		return nil, tx.Error
-	}
-	return &lvl, nil
-}
-
-func findOrCreateLogComponent(ctx context.Context, db *gorm.DB, name string) (*LogComponent, error) {
-	if strings.TrimSpace(name) == "" {
-		return nil, nil
-	}
-	var comp LogComponent
-	tx := db.WithContext(ctx).Where(LogComponent{Name: name}).FirstOrCreate(&comp)
-	if tx.Error != nil {
-		return nil, tx.Error
-	}
-	return &comp, nil
-}
-
-func findOrCreateLogHost(ctx context.Context, db *gorm.DB, name string) (*LogHost, error) {
-	if strings.TrimSpace(name) == "" {
-		return nil, nil
-	}
-	var h LogHost
-	tx := db.WithContext(ctx).Where(LogHost{Name: name}).FirstOrCreate(&h)
-	if tx.Error != nil {
-		return nil, tx.Error
-	}
-	return &h, nil
-}
-
 func AddEntry(db *gorm.DB, e model.LogEntry) error {
 
-	ctx := context.Background()
-
-	lvl, err := findOrCreateLogLevel(ctx, db, string(e.Level))
-	if err != nil {
-		return fmt.Errorf("find/create log level: %w", err)
-	}
-	comp, err := findOrCreateLogComponent(ctx, db, e.Component)
-	if err != nil {
-		return fmt.Errorf("find/create log component: %w", err)
-	}
-	host, err := findOrCreateLogHost(ctx, db, e.Host)
-	if err != nil {
-		return fmt.Errorf("find/create log host: %w", err)
-	}
-
-	x := Entry{
+	entry := Entry{
 		TimeStamp: e.Time,
-		Level:     string(e.Level),
-		Component: e.Component,
-		Host:      e.Host,
 		RequestId: e.ReqID,
 		Message:   e.Msg,
 	}
 
-	// attach IDs if found
-	if lvl != nil {
-		x.LogLevelID = &lvl.ID
+	// string to id --> level
+	var level LogLevel
+	if err := db.Where("level = ?", e.Level).First(&level).Error; err != nil {
+		return err
 	}
-	if comp != nil {
-		x.LogComponentID = &comp.ID
-	}
-	if host != nil {
-		x.LogHostID = &host.ID
-	}
+	entry.LevelId = level.Id
 
-	// Save entry
-	if err := db.WithContext(ctx).Create(&x).Error; err != nil {
+	//component
+	var component LogComponent
+	if err := db.Where("component = ?", e.Component).First(&component).Error; err != nil {
+		return err
+	}
+	entry.ComponentId = component.Id
+
+	//host
+	var host LogHost
+	if err := db.Where("host = ?", e.Host).First(&host).Error; err != nil {
+		return err
+	}
+	entry.HostId = host.Id
+
+	//insert the entry
+	if err := db.Create(&entry).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
 func parseQuery(parts []string) ([]queryComponent, error) {
-
-	var ret []queryComponent
-	// parts := strings.Fields(query)
-
+	// pattern captures key, operator and value (value may contain commas)
 	pattern := `^(?P<key>[^\s=!<>]+)\s*(?P<operator>=|!=|>=|<=|>|<)\s*(?P<value>.+)$`
-
 	r, _ := regexp.Compile(pattern)
+
+	// map of compositeKey -> queryComponent to group same-key tokens
+	grouped := make(map[string]*queryComponent)
+
 	for _, part := range parts {
 		matches := r.FindStringSubmatch(part)
 		if matches == nil {
 			return nil, fmt.Errorf("invalid condition: %s", part)
 		}
 
-		val := strings.Split(matches[r.SubexpIndex("value")], ",")
-		cond := queryComponent{
-			key:      matches[r.SubexpIndex("key")],
-			operator: matches[r.SubexpIndex("operator")],
-			value:    val,
-		}
-		ret = append(ret, cond)
-	}
-	return ret, nil
+		key := strings.TrimSpace(matches[r.SubexpIndex("key")])
+		operator := matches[r.SubexpIndex("operator")]
+		// split values by comma (comma-separated or single token)
+		rawVals := strings.Split(matches[r.SubexpIndex("value")], ",")
 
+		// trim whitespace from values
+		var vals []string
+		for _, v := range rawVals {
+			v = strings.TrimSpace(v)
+			if v != "" {
+				vals = append(vals, v)
+			}
+		}
+		if len(vals) == 0 {
+			continue
+		}
+
+		// use composite key of "key|operator" to allow grouping same operator separately
+		compKey := key + "|" + operator
+
+		if existing, ok := grouped[compKey]; ok {
+			// append new values to existing grouped component
+			existing.value = append(existing.value, vals...)
+		} else {
+			// create new grouped component
+			gc := queryComponent{
+				key:      key,
+				operator: operator,
+				value:    vals,
+			}
+			// store pointer so we can append later
+			grouped[compKey] = &gc
+		}
+	}
+
+	// convert map -> slice for return (preserve deterministic order by iterating keys sorted)
+	var keys []string
+	for k := range grouped {
+		keys = append(keys, k)
+	}
+	// sort to get stable ordering (useful for tests/logs)
+	sort.Strings(keys)
+
+	var ret []queryComponent
+	for _, k := range keys {
+		ret = append(ret, *grouped[k])
+	}
+
+	return ret, nil
 }
 
 func Query(db *gorm.DB, queryList []string) ([]Entry, error) {
@@ -209,8 +224,53 @@ func Query(db *gorm.DB, queryList []string) ([]Entry, error) {
 
 	fmt.Println("Parsed conditions:", parsed)
 
-	q := db
+	q := db.Preload("Level").Preload("Component").Preload("Host")
+
 	for _, c := range parsed {
+
+		key := strings.ToLower(c.key)
+
+		// logic for foriegn key columns
+		switch key {
+
+		case "level":
+			var ids []uint
+			for _, v := range c.value {
+				var lvl LogLevel
+				if err := db.First(&lvl, "level = ?", v).Error; err != nil {
+					return nil, fmt.Errorf("unknown level '%s'", v)
+				}
+				ids = append(ids, lvl.Id)
+			}
+			c.key = "level_id"
+			c.value = toStringSlice(ids)
+
+		case "component":
+			var ids []uint
+			for _, v := range c.value {
+				var comp LogComponent
+				if err := db.First(&comp, "component = ?", v).Error; err != nil {
+					return nil, fmt.Errorf("unknown component '%s'", v)
+				}
+				ids = append(ids, comp.Id)
+			}
+			c.key = "component_id"
+			c.value = toStringSlice(ids)
+
+		case "host":
+			var ids []uint
+			for _, v := range c.value {
+				var h LogHost
+				if err := db.First(&h, "host = ?", v).Error; err != nil {
+					return nil, fmt.Errorf("unknown host '%s'", v)
+				}
+				ids = append(ids, h.Id)
+			}
+			c.key = "host_id"
+			c.value = toStringSlice(ids)
+
+		}
+
 		if len(c.value) == 1 {
 			// single value
 			fmt.Printf("Applying condition: %s %s %s\n", c.key, c.operator, c.value[0])
@@ -235,4 +295,13 @@ func Query(db *gorm.DB, queryList []string) ([]Entry, error) {
 	}
 
 	return ret, nil
+}
+
+// convert int to string
+func toStringSlice(nums []uint) []string {
+	s := make([]string, len(nums))
+	for i, n := range nums {
+		s[i] = fmt.Sprint(n)
+	}
+	return s
 }

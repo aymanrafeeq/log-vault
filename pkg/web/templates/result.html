@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Log Vault</title>
+    <style>
+        body {
+            font-family: 'Fira Code', monospace;
+            padding: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            margin-top: 15px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 8px rgba(221, 157, 157, 0.1);
+        }
+
+        th, td {
+            padding: 8px 12px;
+            border: 1px solid #161515;
+        }
+
+        th {
+            background: #f5c2c2;
+        }
+
+        .title {
+            font-family: 'Fira Code', monospace;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"], input[type="datetime-local"] {
+            height: 30px;
+            padding: 4px 8px;
+            font-family: inherit;
+        }
+
+        button {
+            height: 30px;
+            width: 80px;
+            margin-top: 6px;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .group {
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(245, 194, 194, 0.08);
+        }
+
+        .group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 18px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            margin-right: 6px;
+        }
+
+        .result {
+            margin-top: 18px;
+        }
+
+        .small {
+            font-size: 13px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+<h2 class="title">Log Filter</h2>
+
+<div>
+    <form action="/" method="post">
+        <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+            <!-- If you prefer a datetime-local input, you can switch types. Keep as text if your backend expects string. -->
+            <input type="text" placeholder="enter the DateTime (e.g. 2025-11-17 16:53:00)" name="timestamp" style="flex:1;">
+            <input type="text" placeholder="enter the RequestId" name="request_id" style="flex:1;">
+            <button type="submit">Search</button>
+        </div>
+
+        <div class="controls">
+            <div class="group">
+                <label>Levels</label>
+                <div class="checkbox-row">
+                    <label><input type="checkbox" name="level" value="INFO"> INFO</label>
+                    <label><input type="checkbox" name="level" value="DEBUG"> DEBUG</label>
+                    <label><input type="checkbox" name="level" value="WARN"> WARN</label>
+                    <label><input type="checkbox" name="level" value="ERROR"> ERROR</label>
+                </div>
+            </div>
+
+            <div class="group">
+                <label>Components</label>
+                <div class="checkbox-row">
+                    <label><input type="checkbox" name="component" value="worker"> worker</label>
+                    <label><input type="checkbox" name="component" value="api-server"> api-server</label>
+                    <label><input type="checkbox" name="component" value="cache"> cache</label>
+                    <label><input type="checkbox" name="component" value="database"> database</label>
+                    <label><input type="checkbox" name="component" value="auth"> auth</label>
+                </div>
+            </div>
+
+            <div class="group">
+                <label>Hosts</label>
+                <div class="checkbox-row">
+                    <label><input type="checkbox" name="host" value="web01"> web01</label>
+                    <label><input type="checkbox" name="host" value="web02"> web02</label>
+                    <label><input type="checkbox" name="host" value="cache01"> cache01</label>
+                    <label><input type="checkbox" name="host" value="worker01"> worker01</label>
+                    <label><input type="checkbox" name="host" value="db01"> db01</label>
+                </div>
+            </div>
+                
+        </div>
+    </form>
+</div>
+
+<div class="result">
+    <p>Total results: {{ .count }}</p>
+</div>
+
+<table>
+    <tr>
+        <th>Timestamp</th>
+        <th>Level</th>
+        <th>Component</th>
+        <th>Host</th>
+        <th>Request ID</th>
+        <th>Message</th>
+    </tr>
+
+    {{ range .entries }}
+    <tr>
+        <td>{{ .TimeStamp }}</td>
+        <td>{{ .Level.Level }}</td>
+        <td>{{ .Component.Component }}</td>
+        <td>{{ .Host.Host }}</td>
+        <td>{{ .RequestId }}</td>
+        <td>{{ .Message }}</td>
+    </tr>
+    {{ else }}
+    <tr>
+        <td colspan="6" style="text-align:center">No logs found.</td>
+    </tr>
+    {{ end }}
+
+</table>
+
+</body>
+</html>

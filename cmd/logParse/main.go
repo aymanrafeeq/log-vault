@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log"
 	models "logGen/pkg/dbmodels"
 	"logGen/pkg/parser"
+	"logGen/pkg/web"
 	"os"
 )
 
@@ -21,10 +23,9 @@ func handleCommand(args []string) error {
 			return err
 		}
 	case "add":
-		folderName := args[1] //folder name
+		folderName := args[1]
 
 		entries, err := parser.ParseLogFiles(folderName)
-
 		if err != nil {
 			return fmt.Errorf("error: %v", err)
 		}
@@ -35,7 +36,6 @@ func handleCommand(args []string) error {
 
 		return nil
 	case "query":
-		// query := strings.Join(args[1:], " ")
 		queryList := args[1:]
 
 		entries, err := models.Query(db, queryList)
@@ -48,17 +48,27 @@ func handleCommand(args []string) error {
 		}
 		fmt.Printf("%d entries matched: \n", len(entries))
 		return nil
+
+	case "web":
+		r := web.SetupRoutes(db)
+		log.Println("Server running at http://localhost:8080")
+		return r.Run(":8080")
+
 	default:
-		return fmt.Errorf("unknown command: %s (expected: init | add | query)", args[0])
+		return fmt.Errorf("unknown command: %s (expected: init | add | query | web)", args[0])
 	}
 	return nil
-
 }
 
 func main() {
+	if len(os.Args) < 2 {
+		// default to running web if no args (optional)
+		fmt.Fprintf(os.Stderr, "Usage: %s <init|add|query|web> ...\n", os.Args[0])
+		os.Exit(2)
+	}
 	err := handleCommand(os.Args[1:])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error in invocation %v", err)
+		fmt.Fprintf(os.Stderr, "Error in invocation %v\n", err)
 		os.Exit(-1)
 	}
 }
