@@ -2,105 +2,162 @@ package web
 
 import (
 	"fmt"
-	"log"
 	models "logGen/pkg/dbmodels"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-// showAllLogs - renders all logs (no filters)
 func showAllLogs(c *gin.Context) {
-	entries, err := models.Query(DB, []string{}) // empty filter to get all logs
+	entries, err := models.Query(DB, []string{}) //empty filter to get all logs
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "result.html", gin.H{"error": err.Error()})
+		c.HTML(500, "result.html", gin.H{"error": err.Error()})
 		return
 	}
 
-	// Render with empty Form so template doesn't try to checkboxes
-	c.HTML(http.StatusOK, "result.html", gin.H{
+	// c.HTML(200, "result.html", gin.H{
+	// 	"entries": entries,
+	// 	"count":   len(entries),
+	// })
+
+	c.JSON(200, gin.H{
 		"entries": entries,
-		"count":   len(entries),
-		"Form":    map[string][]string{},
+		// "count":   len(entries),
 	})
 }
 
-// filterLogs - reads form (including multiple checkbox values) and queries DB
-func filterLogs(c *gin.Context) {
-	// Ensure form is parsed so c.Request.Form is populated.
-	// Gin usually parses the form for you when using c.PostForm, but ParseForm ensures the underlying
-	// net/http request has Form and PostForm filled when we want to inspect raw Form slices.
-	if err := c.Request.ParseForm(); err != nil {
-		c.HTML(http.StatusInternalServerError, "result.html", gin.H{"error": "failed to parse form: " + err.Error()})
+func showAllLogsPaginated(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "0"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "100"))
+
+	offset := page * pageSize
+
+	var entries []models.Entry
+	var count int64
+
+	DB.Model(&models.Entry{}).Count(&count)
+	err := DB.
+		Model(&models.Entry{}).
+		Preload("Level").
+		Preload("Component").
+		Preload("Host").
+		Order("id ASC").
+		Offset(offset).
+		Limit(pageSize).
+		Find(&entries).Error
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Read all values. We check both "level" and "level[]" variants so it works with either HTML naming style.
-	levels := c.Request.Form["level"]
-	if len(levels) == 0 {
-		levels = c.Request.Form["level[]"]
-	}
-	components := c.Request.Form["component"]
-	if len(components) == 0 {
-		components = c.Request.Form["component[]"]
-	}
-	hosts := c.Request.Form["host"]
-	if len(hosts) == 0 {
-		hosts = c.Request.Form["host[]"]
-	}
+	c.JSON(http.StatusOK, gin.H{
+		"entries": entries,
+		"count":   count,
+	})
+	fmt.Println("page:", page, "pageSize:", pageSize, "offset:", offset)
 
-	// Single value inputs
-	timestamp := c.PostForm("timestamp")
-	requestID := c.PostForm("request_id")
+}
 
-	// DEBUG: dump raw form to server logs to verify what client sent
-	for k, v := range c.Request.Form {
-		log.Printf("FORM KEY=%s VALUES=%v\n", k, v)
-	}
-	log.Printf("Parsed filters - levels=%v components=%v hosts=%v timestamp=%q requestID=%q\n",
-		levels, components, hosts, timestamp, requestID)
+func filterLogs(c *gin.Context) {
+	queryParts := []string{}
 
-	// Build queryParts.
-	// OPTION A (used here): create one "key=value" token per selected value
-	// Example tokens: ["level=INFO", "level=WARN", "component=worker", "host=web01"]
-	var queryParts []string
-	for _, lv := range levels {
-		lv = strings.TrimSpace(lv)
-		if lv != "" {
-			queryParts = append(queryParts, fmt.Sprintf("level=%s", lv))
+	c.Request.ParseForm()
+	formData := c.Request.PostForm
+
+	result := make(map[string][]string)
+
+	for key, values := range formData {
+		if len(values) > 0 && values[0] != "" {
+			// result[key] = strings.Split(values[0], ",")
+			result[key] = values
 		}
 	}
-	for _, comp := range components {
-		comp = strings.TrimSpace(comp)
-		if comp != "" {
-			queryParts = append(queryParts, fmt.Sprintf("component=%s", comp))
+
+	// Build filters
+	// for key, vals := range result {
+	// 	if len(vals) > 0 {
+	// 		queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, vals[0]))
+	// 	}
+	// }
+
+	for key, vals := range result {
+		if len(vals) > 0 {
+			// join multiple values into one comma string: "INFO,DEBUG"
+			joined := strings.Join(vals, ",")
+			queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, joined))
 		}
-	}
-	for _, h := range hosts {
-		h = strings.TrimSpace(h)
-		if h != "" {
-			queryParts = append(queryParts, fmt.Sprintf("host=%s", h))
-		}
-	}
-	if timestamp != "" {
-		queryParts = append(queryParts, fmt.Sprintf("timestamp=%s", timestamp))
-	}
-	if requestID != "" {
-		queryParts = append(queryParts, fmt.Sprintf("request_id=%s", requestID))
 	}
 
-	// Execute query using your models.Query which accepts []string tokens
+	// Execute query
 	entries, err := models.Query(DB, queryParts)
 	if err != nil {
-		c.HTML(http.StatusInternalServerError, "result.html", gin.H{"error": err.Error()})
+		c.JSON(500, err)
+		return
+	}
+	c.JSON(200, gin.H{
+		"entries": entries,
+		"count":   len(entries),
+	})
+
+}
+
+func filterLogsPaginated(c *gin.Context) {
+
+	var body map[string][]string
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(400, gin.H{
+			"error": "Invalid JSON body",
+		})
 		return
 	}
 
-	// Pass the raw Form map so the template can re-check previously selected checkboxes
-	c.HTML(http.StatusOK, "result.html", gin.H{
-		"entries": entries,
-		"count":   len(entries),
-		"Form":    c.Request.Form,
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "0"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "100"))
+
+	offset := page * pageSize
+
+	queryParts := []string{}
+
+	for key, vals := range body {
+		if len(vals) > 0 {
+			joined := strings.Join(vals, ",")
+			queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, joined))
+		}
+	}
+
+	filteredEntries, err := models.Query(DB, queryParts)
+	if err != nil {
+		c.JSON(500, err)
+		return
+	}
+
+	total := len(filteredEntries)
+	// Apply manual pagination to filtered data
+	start := offset
+	end := offset + pageSize
+
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+
+	pageEntries := filteredEntries[start:end]
+
+	c.JSON(http.StatusOK, gin.H{
+		"entries": pageEntries,
+		"count":   total,
 	})
+
 }
+
+// func new(c *gin.Context) {
+// 	c.HTML(200, "hello.html", gin.H{
+// 		"name": "pranav",
+// 	})
+// }
