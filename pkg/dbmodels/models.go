@@ -305,3 +305,60 @@ func toStringSlice(nums []uint) []string {
 	}
 	return s
 }
+
+func FilterLogsWeb(
+	DB *gorm.DB,
+	levels []string,
+	components []string,
+	hosts []string,
+	requestIds []string,
+	startTime string,
+	endTime string,
+) ([]Entry, error) {
+
+	query := DB.Model(&Entry{})
+
+	if len(levels) > 0 {
+		var levelIDs []uint
+		DB.Model(&LogLevel{}).Where("level IN ?", levels).Pluck("id", &levelIDs)
+		if len(levelIDs) > 0 {
+			query = query.Where("level_id IN ?", levelIDs)
+		}
+	}
+
+	if len(components) > 0 {
+		var compIDs []uint
+		DB.Model(&LogComponent{}).Where("component IN ?", components).Pluck("id", &compIDs)
+		if len(compIDs) > 0 {
+			query = query.Where("component_id IN ?", compIDs)
+		}
+	}
+	if len(hosts) > 0 {
+		var hostIDs []uint
+		DB.Model(&LogHost{}).Where("host IN ?", hosts).Pluck("id", &hostIDs)
+		if len(hostIDs) > 0 {
+			query = query.Where("host_id IN ?", hostIDs)
+		}
+	}
+
+	if len(requestIds) > 0 {
+		query = query.Where("request_id IN ?", requestIds)
+	}
+
+	if startTime != "" && endTime != "" {
+		query = query.Where("timestamp BETWEEN ? AND ?", startTime, endTime)
+	} else if startTime != "" {
+		query = query.Where("timestamp >= ?", startTime)
+	} else if endTime != "" {
+		query = query.Where("timestamp <= ?", endTime)
+	}
+	var entries []Entry
+	result := query.
+		Preload("Level").
+		Preload("Component").
+		Preload("Host").
+		Order("timestamp DESC").
+		Find(&entries)
+
+	return entries, result.Error
+}

@@ -104,39 +104,97 @@ func filterLogs(c *gin.Context) {
 
 }
 
-func filterLogsPaginated(c *gin.Context) {
+// func filterLogsPaginated(c *gin.Context) {
 
-	var body map[string][]string
+// 	var body map[string][]string
 
-	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(400, gin.H{
-			"error": "Invalid JSON body",
-		})
-		return
-	}
+// 	if err := c.ShouldBindJSON(&body); err != nil {
+// 		c.JSON(400, gin.H{
+// 			"error": "Invalid JSON body",
+// 		})
+// 		return
+// 	}
 
+// 	page, _ := strconv.Atoi(c.DefaultQuery("page", "0"))
+// 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "100"))
+
+// 	offset := page * pageSize
+
+// 	queryParts := []string{}
+
+// 	for key, vals := range body {
+// 		if len(vals) > 0 {
+// 			joined := strings.Join(vals, ",")
+// 			queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, joined))
+// 		}
+// 	}
+
+// 	filteredEntries, err := models.Query(DB, queryParts)
+// 	if err != nil {
+// 		c.JSON(500, err)
+// 		return
+// 	}
+
+// 	total := len(filteredEntries)
+// 	// Apply manual pagination to filtered data
+// 	start := offset
+// 	end := offset + pageSize
+
+// 	if start > total {
+// 		start = total
+// 	}
+// 	if end > total {
+// 		end = total
+// 	}
+
+// 	pageEntries := filteredEntries[start:end]
+
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"entries": pageEntries,
+// 		"count":   total,
+// 	})
+
+// }
+
+func FilterPaginatedLogs(c *gin.Context) {
+	//query params
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "0"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "100"))
 
 	offset := page * pageSize
 
-	queryParts := []string{}
-
-	for key, vals := range body {
-		if len(vals) > 0 {
-			joined := strings.Join(vals, ",")
-			queryParts = append(queryParts, fmt.Sprintf("%s=%s", key, joined))
-		}
+	//json body
+	var body struct {
+		Levels     []string `json:"levels"`
+		Components []string `json:"components"`
+		Hosts      []string `json:"hosts"`
+		RequestIds []string `json:"requestIds"`
+		StartTime  string   `json:"startTime"`
+		EndTime    string   `json:"endTime"`
 	}
 
-	filteredEntries, err := models.Query(DB, queryParts)
-	if err != nil {
-		c.JSON(500, err)
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	total := len(filteredEntries)
-	// Apply manual pagination to filtered data
+	filtered, err := models.FilterLogsWeb(
+		DB,
+		body.Levels,
+		body.Components,
+		body.Hosts,
+		body.RequestIds,
+		body.StartTime,
+		body.EndTime,
+	)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	total := len(filtered)
+
 	start := offset
 	end := offset + pageSize
 
@@ -147,17 +205,10 @@ func filterLogsPaginated(c *gin.Context) {
 		end = total
 	}
 
-	pageEntries := filteredEntries[start:end]
+	pageEntries := filtered[start:end]
 
 	c.JSON(http.StatusOK, gin.H{
 		"entries": pageEntries,
-		"count":   total,
+		"total":   total,
 	})
-
 }
-
-// func new(c *gin.Context) {
-// 	c.HTML(200, "hello.html", gin.H{
-// 		"name": "pranav",
-// 	})
-// }

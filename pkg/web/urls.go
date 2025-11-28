@@ -24,7 +24,7 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 
 	r.GET("/", showAllLogs) //first time loading
 	r.POST("/", filterLogs) // after searching
-	r.POST("/filter", filterLogsPaginated)
+	r.POST("/filter", FilterPaginatedLogs)
 
 	// r.GET("/example", example)
 

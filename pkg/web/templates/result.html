@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8" />
     <title>Log Vault</title>
@@ -19,7 +20,8 @@
             box-shadow: 0 4px 8px rgba(221, 157, 157, 0.1);
         }
 
-        th, td {
+        th,
+        td {
             padding: 8px 12px;
             border: 1px solid #161515;
         }
@@ -34,7 +36,8 @@
             margin-bottom: 15px;
         }
 
-        input[type="text"], input[type="datetime-local"] {
+        input[type="text"],
+        input[type="datetime-local"] {
             height: 30px;
             padding: 4px 8px;
             font-family: inherit;
@@ -86,86 +89,165 @@
         }
     </style>
 </head>
+
 <body>
 
-<h2 class="title">Log Filter</h2>
+    <h2 class="title">Log Filter</h2>
 
-<div>
-    <form action="/" method="post">
-        <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
-            <!-- If you prefer a datetime-local input, you can switch types. Keep as text if your backend expects string. -->
-            <input type="text" placeholder="enter the DateTime (e.g. 2025-11-17 16:53:00)" name="timestamp" style="flex:1;">
-            <input type="text" placeholder="enter the RequestId" name="request_id" style="flex:1;">
-            <button type="submit">Search</button>
-        </div>
-
-        <div class="controls">
-            <div class="group">
-                <label>Levels</label>
-                <div class="checkbox-row">
-                    <label><input type="checkbox" name="level" value="INFO"> INFO</label>
-                    <label><input type="checkbox" name="level" value="DEBUG"> DEBUG</label>
-                    <label><input type="checkbox" name="level" value="WARN"> WARN</label>
-                    <label><input type="checkbox" name="level" value="ERROR"> ERROR</label>
-                </div>
+    <div>
+        <form id="filterForm" class="row g-3 align-items-start">
+            <div style="display:flex; gap:12px; align-items:center; margin-bottom:10px;">
+                <!-- If you prefer a datetime-local input, you can switch types. Keep as text if your backend expects string. -->
+                <input type="text" placeholder="enter the DateTime (e.g. 2025-11-17 16:53:00)" name="timestamp"
+                    style="flex:1;">
+                <input type="text" placeholder="enter the RequestId" name="request_id" style="flex:1;">
+                <button type="submit">Search</button>
             </div>
 
-            <div class="group">
-                <label>Components</label>
-                <div class="checkbox-row">
-                    <label><input type="checkbox" name="component" value="worker"> worker</label>
-                    <label><input type="checkbox" name="component" value="api-server"> api-server</label>
-                    <label><input type="checkbox" name="component" value="cache"> cache</label>
-                    <label><input type="checkbox" name="component" value="database"> database</label>
-                    <label><input type="checkbox" name="component" value="auth"> auth</label>
+            <div class="controls">
+                <div class="group">
+                    <label>Levels</label>
+                    <div class="checkbox-row">
+                        <label><input type="checkbox" name="level" value="INFO"> INFO</label>
+                        <label><input type="checkbox" name="level" value="DEBUG"> DEBUG</label>
+                        <label><input type="checkbox" name="level" value="WARN"> WARN</label>
+                        <label><input type="checkbox" name="level" value="ERROR"> ERROR</label>
+                    </div>
                 </div>
-            </div>
 
-            <div class="group">
-                <label>Hosts</label>
-                <div class="checkbox-row">
-                    <label><input type="checkbox" name="host" value="web01"> web01</label>
-                    <label><input type="checkbox" name="host" value="web02"> web02</label>
-                    <label><input type="checkbox" name="host" value="cache01"> cache01</label>
-                    <label><input type="checkbox" name="host" value="worker01"> worker01</label>
-                    <label><input type="checkbox" name="host" value="db01"> db01</label>
+                <div class="group">
+                    <label>Components</label>
+                    <div class="checkbox-row">
+                        <label><input type="checkbox" name="component" value="worker"> worker</label>
+                        <label><input type="checkbox" name="component" value="api-server"> api-server</label>
+                        <label><input type="checkbox" name="component" value="cache"> cache</label>
+                        <label><input type="checkbox" name="component" value="database"> database</label>
+                        <label><input type="checkbox" name="component" value="auth"> auth</label>
+                    </div>
                 </div>
+
+                <div class="group">
+                    <label>Hosts</label>
+                    <div class="checkbox-row">
+                        <label><input type="checkbox" name="host" value="web01"> web01</label>
+                        <label><input type="checkbox" name="host" value="web02"> web02</label>
+                        <label><input type="checkbox" name="host" value="cache01"> cache01</label>
+                        <label><input type="checkbox" name="host" value="worker01"> worker01</label>
+                        <label><input type="checkbox" name="host" value="db01"> db01</label>
+                    </div>
+                </div>
+
             </div>
-                
-        </div>
-    </form>
-</div>
+        </form>
+    </div>
 
-<div class="result">
-    <p>Total results: {{ .count }}</p>
-</div>
+    <div class="result">
+        <p>Total results: <span id="count">{{ .count }}</span></p>
+    </div>
+    <div id="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Level</th>
+                    <th>Component</th>
+                    <th>Host</th>
+                    <th>Request ID</th>
+                    <th>Message</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{ range .entries }}
+                <tr>
+                    <td>{{ .TimeStamp }}</td>
+                    <td>{{ .Level.Level }}</td>
+                    <td>{{ .Component.Component }}</td>
+                    <td>{{ .Host.Host }}</td>
+                    <td>{{ .RequestId }}</td>
+                    <td>{{ .Message }}</td>
+                </tr>
+                {{ else }}
+                <tr>
+                    <td colspan="6" style="text-align:center">No logs found.</td>
+                </tr>
+                {{ end }}
 
-<table>
-    <tr>
-        <th>Timestamp</th>
-        <th>Level</th>
-        <th>Component</th>
-        <th>Host</th>
-        <th>Request ID</th>
-        <th>Message</th>
-    </tr>
+            </tbody>
 
-    {{ range .entries }}
-    <tr>
-        <td>{{ .TimeStamp }}</td>
-        <td>{{ .Level.Level }}</td>
-        <td>{{ .Component.Component }}</td>
-        <td>{{ .Host.Host }}</td>
-        <td>{{ .RequestId }}</td>
-        <td>{{ .Message }}</td>
-    </tr>
-    {{ else }}
-    <tr>
-        <td colspan="6" style="text-align:center">No logs found.</td>
-    </tr>
-    {{ end }}
 
-</table>
+
+        </table>
+    </div>
+
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"></script> -->
+
+    <script>
+        $(document).ready(function () {
+            // Bind to the correct form id
+            $("#filterForm").on("submit", function (e) {
+                e.preventDefault();
+
+                // If your backend expects arrays for repeated keys (level, host, etc.)
+                // jQuery.serialize() will send repeated keys as multiple values (OK for most servers).
+                $.ajax({
+                    url: "/",
+                    type: "POST",
+                    data: $(this).serialize(),
+                    dataType: "json",
+                    success: function (response) {
+                        // defensive checks
+                        var entries = response && response.entries ? response.entries : [];
+                        var count = typeof response.count !== "undefined" ? response.count : entries.length;
+
+                        console.log("Number of logs:", entries.length);
+
+                        // clear old rows
+                        $("#table-container tbody").empty();
+                        // update count
+                        $("#count").text(count);
+
+                        if (entries.length === 0) {
+                            $("#table-container tbody").append(
+                                `<tr><td colspan="6" style="text-align:center; color:#666;">No logs found.</td></tr>`
+                            );
+                        } else {
+                            entries.forEach(e => {
+                                // protect against missing nested objects
+                                var level = e.Level && e.Level.Level ? e.Level.Level : (e.Level || "");
+                                var component = e.Component && e.Component.Component ? e.Component.Component : (e.Component || "");
+                                var host = e.Host && e.Host.Host ? e.Host.Host : (e.Host || "");
+                                var ts = e.TimeStamp || "";
+                                var req = e.RequestId || "";
+                                var msg = e.Message || "";
+
+                                $("#table-container tbody").append(`
+                                    <tr>
+                                        <td>${ts}</td>
+                                        <td>${level}</td>
+                                        <td>${component}</td>
+                                        <td>${host}</td>
+                                        <td>${req}</td>
+                                        <td>${msg}</td>
+                                    </tr>
+                                `);
+                            });
+                        }
+
+                        // reset the form (clears checkboxes/inputs)
+                        $("#filterForm")[0].reset();
+                    },
+                    error: function (xhr, status, err) {
+                        console.error("AJAX error:", status, err);
+                        alert("Something went wrong! Check console for details.");
+                    }
+                });
+            });
+        });
+    </script>
 
 </body>
+
 </html>
